@@ -1,11 +1,10 @@
-// Story 5-7a | Motchill | All New Series (CTA — full list)
-// Target: https://motphimchillvl.net/danh-sach/phim-bo?page=N (paginated)
+// Story 5-7a | Motchill | All New Series (CTA — paged)
+// Contract: getAllNewSeries(page = 1) → JSON array ([] khi hết trang)
+// Target: https://motphimchillvl.net/danh-sach/phim-bo?page=N
 
-async function getAllNewSeries() {
+async function getAllNewSeries(page = 1) {
     const MC_BASE = 'https://motphimchillvl.net';
     const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
-    const MAX_PAGES = 5;
-    const MAX_ITEMS = 80;
 
     async function fetchHtml(url) {
         const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
@@ -59,22 +58,19 @@ async function getAllNewSeries() {
     }
 
     try {
-        console.log('[KENG][5-7a][Motchill] getAllNewSeries()');
-        const allMovies = [];
+        console.log('[KENG][5-7a][Motchill] getAllNewSeries(page=' + page + ')');
+        const url = MC_BASE + '/danh-sach/phim-bo?page=' + page;
+        const html = await fetchHtml(url);
+        const movies = parsePage(html);
 
-        for (let page = 1; page <= MAX_PAGES && allMovies.length < MAX_ITEMS; page++) {
-            const url = MC_BASE + '/danh-sach/phim-bo?page=' + page;
-            const html = await fetchHtml(url);
-            const pageMovies = parsePage(html);
-            if (pageMovies.length === 0) break;
-            allMovies.push(...pageMovies);
-            console.log('[KENG][5-7a][Motchill] page ' + page + ': ' + pageMovies.length + ' items');
+        // Empty array = no more pages → Flutter stops endless scroll
+        if (movies.length === 0) {
+            console.log('[KENG][5-7a][Motchill] getAllNewSeries() END — no more items');
+            return JSON.stringify([]);
         }
 
-        if (allMovies.length === 0) throw new Error('No movies found');
-
         // Fetch missing posters
-        const misses = allMovies.filter(m => !m.poster_url);
+        const misses = movies.filter(m => !m.poster_url);
         if (misses.length > 0) {
             const results = await Promise.allSettled(misses.map(m => fetchHtml(m.url)));
             results.forEach((r, i) => {
@@ -82,7 +78,7 @@ async function getAllNewSeries() {
             });
         }
 
-        const output = allMovies.slice(0, MAX_ITEMS).map(({ slug, ...rest }) => rest);
+        const output = movies.map(({ slug, ...rest }) => rest);
         console.log('[KENG][5-7a][Motchill] getAllNewSeries() SUCCESS: ' + output.length + ' items');
         return JSON.stringify(output);
 

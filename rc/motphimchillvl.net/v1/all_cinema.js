@@ -1,11 +1,10 @@
-// Story 5-7a | Motchill | All Cinema (CTA — full list)
+// Story 5-7a | Motchill | All Cinema (CTA — paged)
+// Contract: getAllCinema(page = 1) → JSON array ([] khi hết trang)
 // Target: https://motphimchillvl.net/danh-sach/phim-chieu-rap?page=N
 
-async function getAllCinema() {
+async function getAllCinema(page = 1) {
     const MC_BASE = 'https://motphimchillvl.net';
     const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
-    const MAX_PAGES = 5;
-    const MAX_ITEMS = 80;
 
     async function fetchHtml(url) {
         const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
@@ -56,23 +55,18 @@ async function getAllCinema() {
     }
 
     try {
-        console.log('[KENG][5-7a][Motchill] getAllCinema()');
-        const allMovies = [];
+        console.log('[KENG][5-7a][Motchill] getAllCinema(page=' + page + ')');
+        const url = MC_BASE + '/danh-sach/phim-chieu-rap?page=' + page;
+        const html = await fetchHtml(url);
+        const movies = parsePage(html);
 
-        for (let page = 1; page <= MAX_PAGES && allMovies.length < MAX_ITEMS; page++) {
-            const url = MC_BASE + '/danh-sach/phim-chieu-rap?page=' + page;
-            const html = await fetchHtml(url);
-            const pageMovies = parsePage(html);
-            if (pageMovies.length === 0) break;
-            allMovies.push(...pageMovies);
-            console.log('[KENG][5-7a][Motchill] page ' + page + ': ' + pageMovies.length + ' items');
+        if (movies.length === 0) {
+            console.log('[KENG][5-7a][Motchill] getAllCinema() END — no more items');
+            return JSON.stringify([]);
         }
 
-        if (allMovies.length === 0) throw new Error('No cinema movies found');
-
-        const output = allMovies.slice(0, MAX_ITEMS);
-        console.log('[KENG][5-7a][Motchill] getAllCinema() SUCCESS: ' + output.length + ' items');
-        return JSON.stringify(output);
+        console.log('[KENG][5-7a][Motchill] getAllCinema() SUCCESS: ' + movies.length + ' items');
+        return JSON.stringify(movies);
 
     } catch (e) {
         console.log('[KENG][5-7a][Motchill] getAllCinema() ERROR: ' + e.message);

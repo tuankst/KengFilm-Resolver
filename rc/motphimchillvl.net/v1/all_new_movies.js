@@ -1,11 +1,10 @@
-// Story 5-7a | Motchill | All New Movies (CTA — full list)
-// Target: https://motphimchillvl.net/danh-sach/phim-le?page=N (paginated)
+// Story 5-7a | Motchill | All New Movies (CTA — paged)
+// Contract: getAllNewMovies(page = 1) → JSON array ([] khi hết trang)
+// Target: https://motphimchillvl.net/danh-sach/phim-le?page=N
 
-async function getAllNewMovies() {
+async function getAllNewMovies(page = 1) {
     const MC_BASE = 'https://motphimchillvl.net';
     const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
-    const MAX_PAGES = 5;
-    const MAX_ITEMS = 80;
 
     async function fetchHtml(url) {
         const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
@@ -56,23 +55,18 @@ async function getAllNewMovies() {
     }
 
     try {
-        console.log('[KENG][5-7a][Motchill] getAllNewMovies()');
-        const allMovies = [];
+        console.log('[KENG][5-7a][Motchill] getAllNewMovies(page=' + page + ')');
+        const url = MC_BASE + '/danh-sach/phim-le?page=' + page;
+        const html = await fetchHtml(url);
+        const movies = parsePage(html);
 
-        for (let page = 1; page <= MAX_PAGES && allMovies.length < MAX_ITEMS; page++) {
-            const url = MC_BASE + '/danh-sach/phim-le?page=' + page;
-            const html = await fetchHtml(url);
-            const pageMovies = parsePage(html);
-            if (pageMovies.length === 0) break;
-            allMovies.push(...pageMovies);
-            console.log('[KENG][5-7a][Motchill] page ' + page + ': ' + pageMovies.length + ' items');
+        if (movies.length === 0) {
+            console.log('[KENG][5-7a][Motchill] getAllNewMovies() END — no more items');
+            return JSON.stringify([]);
         }
 
-        if (allMovies.length === 0) throw new Error('No movies found');
-
-        const output = allMovies.slice(0, MAX_ITEMS);
-        console.log('[KENG][5-7a][Motchill] getAllNewMovies() SUCCESS: ' + output.length + ' items');
-        return JSON.stringify(output);
+        console.log('[KENG][5-7a][Motchill] getAllNewMovies() SUCCESS: ' + movies.length + ' items');
+        return JSON.stringify(movies);
 
     } catch (e) {
         console.log('[KENG][5-7a][Motchill] getAllNewMovies() ERROR: ' + e.message);
