@@ -1,1 +1,92 @@
-async function getAllChinese(){const e="https://motphimchillvl.net";async function t(e){const t=await fetch(e,{headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}});if(!t.ok)throw new Error("Fetch failed "+t.status+": "+e);return t.text()}function l(t){const l=t.split('<li class="item'),i=[];for(let t=1;t<l.length;t++){const s=l[t],n=s.indexOf("</li>"),o=n>=0?s.substring(0,n):s.substring(0,2e3),r=o.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/),a=o.match(/data-original="(\/storage\/[^"]+)"/),c=o.match(/class="label[^"]*"[^>]*>([^<]+)</);if(!r)continue;const g=o.match(/class="name"[\s\S]*?title="([^"]+)"/),h=g?g[1].replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/&#039;/g,"'"):"";if(!h)continue;const u=h.match(/\b(20\d{2})\s*$/),m=u?u[1]:"",f=u?h.slice(0,-m.length).trim():h,p=c?c[1].trim():"";if(p.toLowerCase().includes("trailer"))continue;const d=p.indexOf(" + "),b=d>=0?p.slice(0,d).trim():p,w=d>=0?p.slice(d+3).trim():"";i.push({rank:0,title:f,title_original:"",poster_url:a?e+a[1]:"",url:r[1],media_type:"series",badge_text:b,badge_sub:w,year:m,rating:"",synopsis:"",age_rating:"",episode_current:b,genres:[],slug:r[2]})}return i}try{console.log("[KENG][5-7a][Motchill] getAllChinese()");const i=[];for(let s=1;s<=5&&i.length<80;s++){const n=e+"/quoc-gia/trung-quoc?page="+s,o=l(await t(n));if(0===o.length)break;i.push(...o),console.log("[KENG][5-7a][Motchill] page "+s+": "+o.length+" items")}if(0===i.length)throw new Error("No Chinese movies found");const s=i.filter(e=>!e.poster_url);if(s.length>0){(await Promise.allSettled(s.map(e=>t(e.url)))).forEach((e,t)=>{"fulfilled"===e.status&&(s[t].poster_url=function(e){const t=e.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/);return t?t[1]:""}(e.value))})}const n=i.slice(0,80).map(({slug:e,...t})=>t);return console.log("[KENG][5-7a][Motchill] getAllChinese() SUCCESS: "+n.length+" items"),JSON.stringify(n)}catch(e){return console.log("[KENG][5-7a][Motchill] getAllChinese() ERROR: "+e.message),JSON.stringify({error:e.message})}}
+// Story 5-7a | Motchill | All Chinese (CTA — full list)
+// Target: https://motphimchillvl.net/quoc-gia/trung-quoc?page=N
+
+async function getAllChinese() {
+    const MC_BASE = 'https://motphimchillvl.net';
+    const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+    const MAX_PAGES = 5;
+    const MAX_ITEMS = 80;
+
+    async function fetchHtml(url) {
+        const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
+        if (!res.ok) throw new Error('Fetch failed ' + res.status + ': ' + url);
+        return res.text();
+    }
+
+    function extractOgImage(html) {
+        const m = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/);
+        return m ? m[1] : '';
+    }
+
+    function parsePage(html) {
+        const liParts = html.split('<li class="item');
+        const movies = [];
+        for (let i = 1; i < liParts.length; i++) {
+            const block = liParts[i];
+            const endIdx = block.indexOf('</li>');
+            const liBody = endIdx >= 0 ? block.substring(0, endIdx) : block.substring(0, 2000);
+
+            const hrefM  = liBody.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/);
+            const imgM   = liBody.match(/data-original="(\/storage\/[^"]+)"/);
+            const labelM = liBody.match(/class="label[^"]*"[^>]*>([^<]+)</);
+            if (!hrefM) continue;
+
+            const nameTitleM = liBody.match(/class="name"[\s\S]*?title="([^"]+)"/);
+            const rawTitle = nameTitleM
+                ? nameTitleM[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'")
+                : '';
+            if (!rawTitle) continue;
+
+            const yearM = rawTitle.match(/\b(20\d{2})\s*$/);
+            const year  = yearM ? yearM[1] : '';
+            const title = yearM ? rawTitle.slice(0, -year.length).trim() : rawTitle;
+
+            const label      = labelM ? labelM[1].trim() : '';
+            if (label.toLowerCase().includes('trailer')) continue;
+            const plusIdx    = label.indexOf(' + ');
+            const badge_text = plusIdx >= 0 ? label.slice(0, plusIdx).trim() : label;
+            const badge_sub  = plusIdx >= 0 ? label.slice(plusIdx + 3).trim() : '';
+
+            movies.push({
+                rank: 0, title, title_original: '',
+                poster_url: imgM ? MC_BASE + imgM[1] : '',
+                url: hrefM[1], media_type: 'series', badge_text, badge_sub,
+                year, rating: '', synopsis: '', age_rating: '',
+                episode_current: badge_text, genres: [], slug: hrefM[2]
+            });
+        }
+        return movies;
+    }
+
+    try {
+        console.log('[KENG][5-7a][Motchill] getAllChinese()');
+        const allMovies = [];
+
+        for (let page = 1; page <= MAX_PAGES && allMovies.length < MAX_ITEMS; page++) {
+            const url = MC_BASE + '/quoc-gia/trung-quoc?page=' + page;
+            const html = await fetchHtml(url);
+            const pageMovies = parsePage(html);
+            if (pageMovies.length === 0) break;
+            allMovies.push(...pageMovies);
+            console.log('[KENG][5-7a][Motchill] page ' + page + ': ' + pageMovies.length + ' items');
+        }
+
+        if (allMovies.length === 0) throw new Error('No Chinese movies found');
+
+        const misses = allMovies.filter(m => !m.poster_url);
+        if (misses.length > 0) {
+            const results = await Promise.allSettled(misses.map(m => fetchHtml(m.url)));
+            results.forEach((r, i) => {
+                if (r.status === 'fulfilled') misses[i].poster_url = extractOgImage(r.value);
+            });
+        }
+
+        const output = allMovies.slice(0, MAX_ITEMS).map(({ slug, ...rest }) => rest);
+        console.log('[KENG][5-7a][Motchill] getAllChinese() SUCCESS: ' + output.length + ' items');
+        return JSON.stringify(output);
+
+    } catch (e) {
+        console.log('[KENG][5-7a][Motchill] getAllChinese() ERROR: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}

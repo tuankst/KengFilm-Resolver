@@ -1,1 +1,93 @@
-async function getAllKorean(){const t="https://motphimchillvl.net";async function e(t){const e=await fetch(t,{headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}});if(!e.ok)throw new Error("Fetch failed "+e.status+": "+t);return e.text()}function l(e){const l=e.split('<li class="item'),n=[];for(let e=1;e<l.length;e++){const i=l[e],o=i.indexOf("</li>"),s=o>=0?i.substring(0,o):i.substring(0,2e3),r=s.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/),a=s.match(/data-original="(\/storage\/[^"]+)"/),c=s.match(/class="label[^"]*"[^>]*>([^<]+)</);if(!r)continue;const g=s.match(/class="name"[\s\S]*?title="([^"]+)"/),h=g?g[1].replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/&#039;/g,"'"):"";if(!h)continue;const u=h.match(/\b(20\d{2})\s*$/),m=u?u[1]:"",f=u?h.slice(0,-m.length).trim():h,p=c?c[1].trim():"";if(p.toLowerCase().includes("trailer"))continue;const d=p.indexOf(" + "),K=d>=0?p.slice(0,d).trim():p,b=d>=0?p.slice(d+3).trim():"";n.push({rank:0,title:f,title_original:"",poster_url:a?t+a[1]:"",url:r[1],media_type:"series",badge_text:K,badge_sub:b,year:m,rating:"",synopsis:"",age_rating:"",episode_current:K,genres:[],slug:r[2]})}return n}try{console.log("[KENG][5-7a][Motchill] getAllKorean()");const n=[];for(let i=1;i<=5&&n.length<80;i++){const o=t+"/quoc-gia/han-quoc?page="+i,s=l(await e(o));if(0===s.length)break;n.push(...s),console.log("[KENG][5-7a][Motchill] page "+i+": "+s.length+" items")}if(0===n.length)throw new Error("No Korean movies found");const i=n.filter(t=>!t.poster_url);if(i.length>0){(await Promise.allSettled(i.map(t=>e(t.url)))).forEach((t,e)=>{"fulfilled"===t.status&&(i[e].poster_url=function(t){const e=t.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/);return e?e[1]:""}(t.value))})}const o=n.slice(0,80).map(({slug:t,...e})=>e);return console.log("[KENG][5-7a][Motchill] getAllKorean() SUCCESS: "+o.length+" items"),JSON.stringify(o)}catch(t){return console.log("[KENG][5-7a][Motchill] getAllKorean() ERROR: "+t.message),JSON.stringify({error:t.message})}}
+// Story 5-7a | Motchill | All Korean (CTA — full list)
+// Target: https://motphimchillvl.net/quoc-gia/han-quoc?page=N
+
+async function getAllKorean() {
+    const MC_BASE = 'https://motphimchillvl.net';
+    const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+    const MAX_PAGES = 5;
+    const MAX_ITEMS = 80;
+
+    async function fetchHtml(url) {
+        const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
+        if (!res.ok) throw new Error('Fetch failed ' + res.status + ': ' + url);
+        return res.text();
+    }
+
+    function extractOgImage(html) {
+        const m = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/);
+        return m ? m[1] : '';
+    }
+
+    function parsePage(html) {
+        const liParts = html.split('<li class="item');
+        const movies = [];
+        for (let i = 1; i < liParts.length; i++) {
+            const block = liParts[i];
+            const endIdx = block.indexOf('</li>');
+            const liBody = endIdx >= 0 ? block.substring(0, endIdx) : block.substring(0, 2000);
+
+            const hrefM  = liBody.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/);
+            const imgM   = liBody.match(/data-original="(\/storage\/[^"]+)"/);
+            const labelM = liBody.match(/class="label[^"]*"[^>]*>([^<]+)</);
+            if (!hrefM) continue;
+
+            const nameTitleM = liBody.match(/class="name"[\s\S]*?title="([^"]+)"/);
+            const rawTitle = nameTitleM
+                ? nameTitleM[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'")
+                : '';
+            if (!rawTitle) continue;
+
+            const yearM = rawTitle.match(/\b(20\d{2})\s*$/);
+            const year  = yearM ? yearM[1] : '';
+            const title = yearM ? rawTitle.slice(0, -year.length).trim() : rawTitle;
+
+            const label      = labelM ? labelM[1].trim() : '';
+            if (label.toLowerCase().includes('trailer')) continue;
+            const plusIdx    = label.indexOf(' + ');
+            const badge_text = plusIdx >= 0 ? label.slice(0, plusIdx).trim() : label;
+            const badge_sub  = plusIdx >= 0 ? label.slice(plusIdx + 3).trim() : '';
+
+            movies.push({
+                rank: 0, title, title_original: '',
+                poster_url: imgM ? MC_BASE + imgM[1] : '',
+                url: hrefM[1], media_type: 'series', badge_text, badge_sub,
+                year, rating: '', synopsis: '', age_rating: '',
+                episode_current: badge_text, genres: [], slug: hrefM[2]
+            });
+        }
+        return movies;
+    }
+
+    try {
+        console.log('[KENG][5-7a][Motchill] getAllKorean()');
+        const allMovies = [];
+
+        for (let page = 1; page <= MAX_PAGES && allMovies.length < MAX_ITEMS; page++) {
+            const url = MC_BASE + '/quoc-gia/han-quoc?page=' + page;
+            const html = await fetchHtml(url);
+            const pageMovies = parsePage(html);
+            if (pageMovies.length === 0) break;
+            allMovies.push(...pageMovies);
+            console.log('[KENG][5-7a][Motchill] page ' + page + ': ' + pageMovies.length + ' items');
+        }
+
+        if (allMovies.length === 0) throw new Error('No Korean movies found');
+
+        // Fetch missing posters
+        const misses = allMovies.filter(m => !m.poster_url);
+        if (misses.length > 0) {
+            const results = await Promise.allSettled(misses.map(m => fetchHtml(m.url)));
+            results.forEach((r, i) => {
+                if (r.status === 'fulfilled') misses[i].poster_url = extractOgImage(r.value);
+            });
+        }
+
+        const output = allMovies.slice(0, MAX_ITEMS).map(({ slug, ...rest }) => rest);
+        console.log('[KENG][5-7a][Motchill] getAllKorean() SUCCESS: ' + output.length + ' items');
+        return JSON.stringify(output);
+
+    } catch (e) {
+        console.log('[KENG][5-7a][Motchill] getAllKorean() ERROR: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}

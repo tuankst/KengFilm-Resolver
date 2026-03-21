@@ -1,1 +1,93 @@
-async function getAllNewSeries(){const e="https://motphimchillvl.net";async function t(e){const t=await fetch(e,{headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}});if(!t.ok)throw new Error("Fetch failed "+t.status+": "+e);return t.text()}function l(t){const l=t.split('<li class="item'),s=[];for(let t=1;t<l.length;t++){const i=l[t],n=i.indexOf("</li>"),r=n>=0?i.substring(0,n):i.substring(0,2e3),o=r.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/),a=r.match(/data-original="(\/storage\/[^"]+)"/),c=r.match(/class="label[^"]*"[^>]*>([^<]+)</);if(!o)continue;const g=r.match(/class="name"[\s\S]*?title="([^"]+)"/),h=g?g[1].replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/&#039;/g,"'"):"";if(!h)continue;const u=h.match(/\b(20\d{2})\s*$/),m=u?u[1]:"",p=u?h.slice(0,-m.length).trim():h,f=c?c[1].trim():"";if(f.toLowerCase().includes("trailer"))continue;const d=f.indexOf(" + "),w=d>=0?f.slice(0,d).trim():f,N=d>=0?f.slice(d+3).trim():"";s.push({rank:0,title:p,title_original:"",poster_url:a?e+a[1]:"",url:o[1],media_type:"series",badge_text:w,badge_sub:N,year:m,rating:"",synopsis:"",age_rating:"",episode_current:w,genres:[],slug:o[2]})}return s}try{console.log("[KENG][5-7a][Motchill] getAllNewSeries()");const s=[];for(let i=1;i<=5&&s.length<80;i++){const n=e+"/danh-sach/phim-bo?page="+i,r=l(await t(n));if(0===r.length)break;s.push(...r),console.log("[KENG][5-7a][Motchill] page "+i+": "+r.length+" items")}if(0===s.length)throw new Error("No movies found");const i=s.filter(e=>!e.poster_url);if(i.length>0){(await Promise.allSettled(i.map(e=>t(e.url)))).forEach((e,t)=>{"fulfilled"===e.status&&(i[t].poster_url=function(e){const t=e.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/);return t?t[1]:""}(e.value))})}const n=s.slice(0,80).map(({slug:e,...t})=>t);return console.log("[KENG][5-7a][Motchill] getAllNewSeries() SUCCESS: "+n.length+" items"),JSON.stringify(n)}catch(e){return console.log("[KENG][5-7a][Motchill] getAllNewSeries() ERROR: "+e.message),JSON.stringify({error:e.message})}}
+// Story 5-7a | Motchill | All New Series (CTA — full list)
+// Target: https://motphimchillvl.net/danh-sach/phim-bo?page=N (paginated)
+
+async function getAllNewSeries() {
+    const MC_BASE = 'https://motphimchillvl.net';
+    const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+    const MAX_PAGES = 5;
+    const MAX_ITEMS = 80;
+
+    async function fetchHtml(url) {
+        const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
+        if (!res.ok) throw new Error('Fetch failed ' + res.status + ': ' + url);
+        return res.text();
+    }
+
+    function extractOgImage(html) {
+        const m = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/);
+        return m ? m[1] : '';
+    }
+
+    function parsePage(html) {
+        const liParts = html.split('<li class="item');
+        const movies = [];
+        for (let i = 1; i < liParts.length; i++) {
+            const block = liParts[i];
+            const endIdx = block.indexOf('</li>');
+            const liBody = endIdx >= 0 ? block.substring(0, endIdx) : block.substring(0, 2000);
+
+            const hrefM  = liBody.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/);
+            const imgM   = liBody.match(/data-original="(\/storage\/[^"]+)"/);
+            const labelM = liBody.match(/class="label[^"]*"[^>]*>([^<]+)</);
+            if (!hrefM) continue;
+
+            const nameTitleM = liBody.match(/class="name"[\s\S]*?title="([^"]+)"/);
+            const rawTitle = nameTitleM
+                ? nameTitleM[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'")
+                : '';
+            if (!rawTitle) continue;
+
+            const yearM = rawTitle.match(/\b(20\d{2})\s*$/);
+            const year  = yearM ? yearM[1] : '';
+            const title = yearM ? rawTitle.slice(0, -year.length).trim() : rawTitle;
+
+            const label      = labelM ? labelM[1].trim() : '';
+            if (label.toLowerCase().includes('trailer')) continue;
+            const plusIdx    = label.indexOf(' + ');
+            const badge_text = plusIdx >= 0 ? label.slice(0, plusIdx).trim() : label;
+            const badge_sub  = plusIdx >= 0 ? label.slice(plusIdx + 3).trim() : '';
+
+            movies.push({
+                rank: 0, title, title_original: '',
+                poster_url: imgM ? MC_BASE + imgM[1] : '',
+                url: hrefM[1], media_type: 'series', badge_text, badge_sub,
+                year, rating: '', synopsis: '', age_rating: '',
+                episode_current: badge_text, genres: [], slug: hrefM[2]
+            });
+        }
+        return movies;
+    }
+
+    try {
+        console.log('[KENG][5-7a][Motchill] getAllNewSeries()');
+        const allMovies = [];
+
+        for (let page = 1; page <= MAX_PAGES && allMovies.length < MAX_ITEMS; page++) {
+            const url = MC_BASE + '/danh-sach/phim-bo?page=' + page;
+            const html = await fetchHtml(url);
+            const pageMovies = parsePage(html);
+            if (pageMovies.length === 0) break;
+            allMovies.push(...pageMovies);
+            console.log('[KENG][5-7a][Motchill] page ' + page + ': ' + pageMovies.length + ' items');
+        }
+
+        if (allMovies.length === 0) throw new Error('No movies found');
+
+        // Fetch missing posters
+        const misses = allMovies.filter(m => !m.poster_url);
+        if (misses.length > 0) {
+            const results = await Promise.allSettled(misses.map(m => fetchHtml(m.url)));
+            results.forEach((r, i) => {
+                if (r.status === 'fulfilled') misses[i].poster_url = extractOgImage(r.value);
+            });
+        }
+
+        const output = allMovies.slice(0, MAX_ITEMS).map(({ slug, ...rest }) => rest);
+        console.log('[KENG][5-7a][Motchill] getAllNewSeries() SUCCESS: ' + output.length + ' items');
+        return JSON.stringify(output);
+
+    } catch (e) {
+        console.log('[KENG][5-7a][Motchill] getAllNewSeries() ERROR: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}

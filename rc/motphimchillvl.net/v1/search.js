@@ -1,1 +1,109 @@
-const MC_BASE="https://motphimchillvl.net",MC_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";async function fetchHtml(t){const e=await fetch(t,{headers:{"User-Agent":MC_UA}});if(!e.ok)throw new Error("Fetch failed "+e.status+": "+t);return e.text()}async function searchMovies(t){try{if(!t||!t.trim())throw new Error("keyword is required");console.log("[KENG][1-17][Motchill] searchMovies("+t+")");const e=encodeURIComponent(t.trim()),s=MC_BASE+"/?search="+e,i=await fetchHtml(s),r=i.indexOf("list-films film-new");if(r<0)throw new Error("Search results section not found");const n=i.substring(r,r+2e4).split('<li class="item'),l=[];for(let t=1;t<n.length&&l.length<20;t++){const e=n[t].indexOf("</li>"),s=e>=0?n[t].substring(0,e):n[t].substring(0,2e3),i=s.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/),r=s.match(/class="name"[\s\S]{0,300}?title="([^"]+)"/),o=s.match(/data-original="([^"]+)"/),c=s.match(/class="label[^"]*">([^<]+)</);if(!i)continue;const a=(r?r[1]:"").replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/&#039;/g,"'").trim();if(!a)continue;const h=c?c[1].trim():"";if(h.toLowerCase().includes("trailer")||a.toLowerCase().includes("trailer"))continue;let f=a,m="";const u=a.match(/\s+((?:19|20)\d{2})$/);u&&(m=u[1],f=a.replace(u[0],"").trim());const g=h.indexOf(" + "),d=g>=0?h.slice(0,g).trim():h,p=g>=0?h.slice(g+3).trim():"";let w="movie";(/tập\s*\d+/i.test(d)||/^\d+\/\d+$/.test(d)||/\d+\s*tập/i.test(d)||/full/i.test(d)&&!/full\s*hd/i.test(d))&&(w="series");let E=o?o[1]:"";E&&!E.startsWith("http")&&(E=MC_BASE+E),l.push({rank:0,title:f,title_original:"",poster_url:E,url:i[1],media_type:w,badge_text:d,badge_sub:p,year:m,rating:"",synopsis:"",age_rating:"",episode_current:d,genres:[]})}if(0===l.length)throw new Error("No results found for: "+t);return console.log("[KENG][1-17][Motchill] SUCCESS: "+l.length+" items, first: "+l[0].title),JSON.stringify(l)}catch(t){return console.log("[KENG][1-17][Motchill] ERROR: "+t.message),JSON.stringify({error:t.message})}}
+// Story 1-17 | Motchill | Search
+// Target: https://motphimchillvl.net/?search={keyword}
+// Structure: identical to listing pages (list-films film-new section)
+
+const MC_BASE = 'https://motphimchillvl.net';
+const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+async function fetchHtml(url) {
+    const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
+    if (!res.ok) throw new Error('Fetch failed ' + res.status + ': ' + url);
+    return res.text();
+}
+
+async function searchMovies(keyword) {
+    try {
+        if (!keyword || !keyword.trim()) throw new Error('keyword is required');
+        console.log('[KENG][1-17][Motchill] searchMovies(' + keyword + ')');
+
+        const encoded = encodeURIComponent(keyword.trim());
+        const target  = MC_BASE + '/?search=' + encoded;
+        const html    = await fetchHtml(target);
+
+        // Isolate search results section (list-films film-new)
+        const secStart = html.indexOf('list-films film-new');
+        if (secStart < 0) throw new Error('Search results section not found');
+        const section = html.substring(secStart, secStart + 20000);
+
+        const parts   = section.split('<li class="item');
+        const results = [];
+
+        for (let i = 1; i < parts.length && results.length < 20; i++) {
+            const endIdx = parts[i].indexOf('</li>');
+            const block  = endIdx >= 0 ? parts[i].substring(0, endIdx) : parts[i].substring(0, 2000);
+
+            const hrefM  = block.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/);
+            const nameM  = block.match(/class="name"[\s\S]{0,300}?title="([^"]+)"/);
+            const imgM   = block.match(/data-original="([^"]+)"/);
+            const labelM = block.match(/class="label[^"]*">([^<]+)</);
+
+            if (!hrefM) continue;
+
+            const rawTitle = (nameM ? nameM[1] : '')
+                .replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'").trim();
+
+            if (!rawTitle) continue;
+
+            const label = labelM ? labelM[1].trim() : '';
+
+            // Filter out Trailer
+            if (label.toLowerCase().includes('trailer') || rawTitle.toLowerCase().includes('trailer')) {
+                continue;
+            }
+
+            // Split title and year: "Title 2024" -> "Title", "2024"
+            let title = rawTitle;
+            let year  = '';
+            const yearMatch = rawTitle.match(/\s+((?:19|20)\d{2})$/);
+            if (yearMatch) {
+                year  = yearMatch[1];
+                title = rawTitle.replace(yearMatch[0], '').trim();
+            }
+
+            const plusIdx    = label.indexOf(' + ');
+            const badge_text = plusIdx >= 0 ? label.slice(0, plusIdx).trim() : label;
+            const badge_sub  = plusIdx >= 0 ? label.slice(plusIdx + 3).trim() : '';
+
+            // Detect media_type từ badge_text:
+            // - Số tập (e.g. "Tập 12", "12/24") hoặc "Full" (không phải "Full HD") → series
+            // - "Full HD", "CAM", "HD", v.v. → movie
+            let media_type = 'movie';
+            if (/tập\s*\d+/i.test(badge_text) || /^\d+\/\d+$/.test(badge_text) || /\d+\s*tập/i.test(badge_text)) {
+                media_type = 'series';
+            } else if (/full/i.test(badge_text) && !/full\s*hd/i.test(badge_text)) {
+                media_type = 'series';
+            }
+
+            let poster = imgM ? imgM[1] : '';
+            if (poster && !poster.startsWith('http')) {
+                poster = MC_BASE + poster;
+            }
+
+            results.push({
+                rank:            0,
+                title:           title,
+                title_original:  '',
+                poster_url:      poster,
+                url:             hrefM[1],
+                media_type:      media_type,
+                badge_text:      badge_text,
+                badge_sub:       badge_sub,
+                year:            year,
+                rating:          '',
+                synopsis:        '',
+                age_rating:      '',
+                episode_current: badge_text,
+                genres:          [],
+            });
+        }
+
+        if (results.length === 0) throw new Error('No results found for: ' + keyword);
+
+        console.log('[KENG][1-17][Motchill] SUCCESS: ' + results.length + ' items, first: ' + results[0].title);
+        return JSON.stringify(results);
+
+    } catch (e) {
+        console.log('[KENG][1-17][Motchill] ERROR: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}

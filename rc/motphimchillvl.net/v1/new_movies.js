@@ -1,1 +1,76 @@
-async function getNewMovies(){const t="https://motphimchillvl.net";try{console.log("[KENG][1-13][Motchill] getNewMovies()");const e=(await async function(t){const e=await fetch(t,{headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}});if(!e.ok)throw new Error("Fetch failed "+e.status+": "+t);return e.text()}(t+"/danh-sach/phim-le")).split('<li class="item'),i=[];for(let r=1;r<e.length&&i.length<20;r++){const s=e[r].indexOf("</li>"),l=s>=0?e[r].substring(0,s):e[r].substring(0,2e3),n=l.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/),o=l.match(/class="name"[\s\S]{0,300}?title="([^"]+)"/),a=l.match(/data-original="([^"]+)"/),c=l.match(/class="label[^"]*">([^<]+)</);if(!n)continue;const h=(o?o[1]:"").replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/&#039;/g,"'").trim();if(!h)continue;const g=c?c[1].trim():"";if(g.toLowerCase().includes("trailer")||h.toLowerCase().includes("trailer"))continue;let m=h,f="";const u=h.match(/\s+((?:19|20)\d{2})$/);u&&(f=u[1],m=h.replace(u[0],"").trim());const p=g.indexOf(" + "),d=p>=0?g.slice(0,p).trim():g,w=p>=0?g.slice(p+3).trim():"";let E=a?a[1]:"";E&&!E.startsWith("http")&&(E=t+E),i.push({rank:0,title:m,title_original:"",poster_url:E,url:n[1],media_type:"movie",badge_text:d,badge_sub:w,year:f,rating:"",synopsis:"",age_rating:"",episode_current:d,genres:[]})}if(0===i.length)throw new Error("No movies found");const r=i.filter(t=>!t.badge_text.toLowerCase().includes("trailer"));if(0===r.length)throw new Error("All items filtered as trailers");return r.forEach((t,e)=>{i[e]=t}),i.length=r.length,console.log("[KENG][1-13][Motchill] SUCCESS: "+i.length+" items, first: "+i[0].title),JSON.stringify(i)}catch(t){return console.log("[KENG][1-13][Motchill] ERROR: "+t.message),JSON.stringify({error:t.message})}}
+// Story 1-13 | Motchill | Phim Lẻ Mới
+// Target: https://motphimchillvl.net/danh-sach/phim-le
+
+async function getNewMovies() {
+    const MC_BASE = 'https://motphimchillvl.net';
+    const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+    async function fetchHtml(url) {
+        const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
+        if (!res.ok) throw new Error('Fetch failed ' + res.status + ': ' + url);
+        return res.text();
+    }
+
+    try {
+        console.log('[KENG][1-13][Motchill] getNewMovies()');
+        const html = await fetchHtml(MC_BASE + '/danh-sach/phim-le');
+
+        const parts = html.split('<li class="item');
+        const movies = [];
+
+        for (let i = 1; i < parts.length && movies.length < 20; i++) {
+            const endIdx = parts[i].indexOf('</li>');
+            const block = endIdx >= 0 ? parts[i].substring(0, endIdx) : parts[i].substring(0, 2000);
+
+            const hrefM  = block.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/);
+            const nameM  = block.match(/class="name"[\s\S]{0,300}?title="([^"]+)"/);
+            const imgM   = block.match(/data-original="([^"]+)"/);
+            const labelM = block.match(/class="label[^"]*">([^<]+)</);
+
+            if (!hrefM) continue;
+
+            const rawTitle = (nameM ? nameM[1] : '')
+                .replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'").trim();
+            if (!rawTitle) continue;
+
+            const label = labelM ? labelM[1].trim() : '';
+            if (label.toLowerCase().includes('trailer') || rawTitle.toLowerCase().includes('trailer')) continue;
+
+            let title = rawTitle;
+            let year  = '';
+            const yearMatch = rawTitle.match(/\s+((?:19|20)\d{2})$/);
+            if (yearMatch) {
+                year = yearMatch[1];
+                title = rawTitle.replace(yearMatch[0], '').trim();
+            }
+
+            const plusIdx    = label.indexOf(' + ');
+            const badge_text = plusIdx >= 0 ? label.slice(0, plusIdx).trim() : label;
+            const badge_sub  = plusIdx >= 0 ? label.slice(plusIdx + 3).trim() : '';
+
+            let poster = imgM ? imgM[1] : '';
+            if (poster && !poster.startsWith('http')) poster = MC_BASE + poster;
+
+            movies.push({
+                rank: 0, title, title_original: '', poster_url: poster,
+                url: hrefM[1], media_type: 'movie', badge_text, badge_sub,
+                year, rating: '', synopsis: '', age_rating: '',
+                episode_current: badge_text, genres: [],
+            });
+        }
+
+        if (movies.length === 0) throw new Error('No movies found');
+
+        const filtered = movies.filter(m => !m.badge_text.toLowerCase().includes('trailer'));
+        if (filtered.length === 0) throw new Error('All items filtered as trailers');
+        filtered.forEach((m, i) => { movies[i] = m; });
+        movies.length = filtered.length;
+
+        console.log('[KENG][1-13][Motchill] SUCCESS: ' + movies.length + ' items, first: ' + movies[0].title);
+        return JSON.stringify(movies);
+
+    } catch (e) {
+        console.log('[KENG][1-13][Motchill] ERROR: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}

@@ -1,1 +1,50 @@
-const RO_BASE="https://rophimm.me",RO_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";async function getTop10Series(){try{console.log("[KENG][1-10][Rophimm] getTop10Series()");const e=await fetch(RO_BASE+"/baseapi/api/v1/lists/homepageLists?page=2&limit=3",{credentials:"include",headers:{Referer:RO_BASE+"/",Accept:"application/json","User-Agent":RO_UA}});if(!e.ok)throw new Error("homepageLists fetch failed: "+e.status);const o=await e.json(),t=o.result&&o.result.collections||[],i=t.find(e=>e.name&&e.name.toLowerCase().includes("top 10")&&e.name.toLowerCase().includes("b"));if(!i)throw new Error("Top 10 phim bộ collection not found. Collections: "+t.map(e=>e.name).join(", "));const n=(i.movies||[]).slice(0,10).map((e,o)=>({rank:o+1,title:e.name,title_original:e.origin_name||"",poster_url:e.thumbnail||e.poster||"",url:RO_BASE+"/phim/"+e.slug,badge_text:e.episode_current||""}));if(0===n.length)throw new Error("No movies in collection");return console.log("[KENG][1-10][Rophimm] SUCCESS: "+n.length+" items, first: "+n[0].title),JSON.stringify(n)}catch(e){return console.log("[KENG][1-10][Rophimm] ERROR: "+e.message),JSON.stringify({error:e.message})}}
+// Story 1-10 | Rophimm | Top 10 Phim Bộ Hôm Nay
+// BaseUrl: https://rophimm.me
+// Strategy: GET /baseapi/api/v1/lists/homepageLists?page=2&limit=3
+//           → find collection "Top 10 phim bộ hôm nay" → movies[]
+// Note: API requires credentials (cookies from homepage visit)
+
+const RO_BASE = 'https://rophimm.me';
+const RO_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+async function getTop10Series() {
+    try {
+        console.log('[KENG][1-10][Rophimm] getTop10Series()');
+
+        const res = await fetch(RO_BASE + '/baseapi/api/v1/lists/homepageLists?page=2&limit=3', {
+            credentials: 'include',
+            headers: {
+                'Referer': RO_BASE + '/',
+                'Accept': 'application/json',
+                'User-Agent': RO_UA
+            }
+        });
+        if (!res.ok) throw new Error('homepageLists fetch failed: ' + res.status);
+
+        const data = await res.json();
+        const collections = (data.result && data.result.collections) || [];
+
+        // Find "Top 10 phim bộ hôm nay" collection
+        const col = collections.find(c =>
+            c.name && c.name.toLowerCase().includes('top 10') && c.name.toLowerCase().includes('b')
+        );
+        if (!col) throw new Error('Top 10 phim bộ collection not found. Collections: ' + collections.map(c => c.name).join(', '));
+
+        const movies = (col.movies || []).slice(0, 10).map((m, idx) => ({
+            rank: idx + 1,
+            title: m.name,
+            title_original: m.origin_name || '',
+            poster_url: m.thumbnail || m.poster || '',
+            url: RO_BASE + '/phim/' + m.slug,
+            badge_text: m.episode_current || ''
+        }));
+
+        if (movies.length === 0) throw new Error('No movies in collection');
+        console.log('[KENG][1-10][Rophimm] SUCCESS: ' + movies.length + ' items, first: ' + movies[0].title);
+        return JSON.stringify(movies);
+
+    } catch (e) {
+        console.log('[KENG][1-10][Rophimm] ERROR: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}

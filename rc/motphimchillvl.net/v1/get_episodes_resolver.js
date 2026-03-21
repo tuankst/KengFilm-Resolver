@@ -1,1 +1,71 @@
-async function getEpisodes(e){const t="https://motphimchillvl.net";try{console.log("[JS-MC] Fetching film page: "+e);const s=await fetch(e,{headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}});if(!s.ok)throw new Error("Film page fetch failed: "+s.status);const r=(await s.text()).match(/class="[^"]*btn-stream-link[^"]*"\s+href="([^"]+)"/);if(!r)throw new Error("Watch URL not found (btn-stream-link)");const i=r[1],o=i.startsWith("http")?i:t+i;console.log("[JS-MC] Watch URL: "+o);const n=await fetch(o,{headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}});if(!n.ok)throw new Error("Watch page fetch failed: "+n.status);const a=await n.text(),l=[],c=/<div[^>]+class="[^"]*server-episode-block[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<div[^>]+class="[^"]*episodes[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;let h;for(;null!==(h=c.exec(a));){const e=h[1].replace(/<[^>]+>/g,"").trim().replace(/:$/,""),s=h[2],r=/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;let i;for(;null!==(i=r.exec(s));){const s=i[1],r=i[2].replace(/<[^>]+>/g,"").trim(),o=s.startsWith("http")?s:t+s;l.push({id:o,name:r,server:e})}}if(0===l.length){const e=/<a[^>]+href="(\/xem-phim\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;let s;for(;null!==(s=e.exec(a));){const e=s[2].replace(/<[^>]+>/g,"").trim();e&&l.push({id:t+s[1],name:e,server:"Vietsub"})}}return console.log("[JS-MC] Episodes found: "+l.length),JSON.stringify(l)}catch(e){return console.log("[JS-MC] getEpisodes error: "+e.message),JSON.stringify({error:e.message})}}
+/**
+ * Motchill Resolver v1.0
+ * Architecture: JS-Logic-Shell Standard
+ *
+ * App gọi:
+ *   getEpisodes(filmUrl)   — lấy danh sách tập từ trang phim
+ *   getStreamUrl(episodeUrl) — lấy M3U8 / embed link từ trang xem phim
+ *
+ * Toàn bộ logic fetch + parse nằm trong JS này.
+ * Chạy trong WebView context (baseUrl = https://motphimchillvl.net).
+ */
+
+async function getEpisodes(filmUrl) {
+    const MOTCHILL_BASE = 'https://motphimchillvl.net';
+    try {
+        console.log('[JS-MC] Fetching film page: ' + filmUrl);
+        const filmRes = await fetch(filmUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        });
+        if (!filmRes.ok) throw new Error('Film page fetch failed: ' + filmRes.status);
+        const filmHtml = await filmRes.text();
+
+        // Parse watch URL from <a class="btn-stream-link" href="...">
+        const watchMatch = filmHtml.match(/class="[^"]*btn-stream-link[^"]*"\s+href="([^"]+)"/);
+        if (!watchMatch) throw new Error('Watch URL not found (btn-stream-link)');
+        const watchPath = watchMatch[1];
+        const watchUrl = watchPath.startsWith('http') ? watchPath : MOTCHILL_BASE + watchPath;
+        console.log('[JS-MC] Watch URL: ' + watchUrl);
+
+        // Fetch watch page — contains full episode list
+        const watchRes = await fetch(watchUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        });
+        if (!watchRes.ok) throw new Error('Watch page fetch failed: ' + watchRes.status);
+        const watchHtml = await watchRes.text();
+
+        // Parse episodes from div.episodes > a
+        // Each server block: <div class="server-episode-block">ServerName</div><div class="episodes"><a href="...">Tập N</a>...
+        const episodes = [];
+        const serverBlockRe = /<div[^>]+class="[^"]*server-episode-block[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<div[^>]+class="[^"]*episodes[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+        let serverMatch;
+        while ((serverMatch = serverBlockRe.exec(watchHtml)) !== null) {
+            const serverName = serverMatch[1].replace(/<[^>]+>/g, '').trim().replace(/:$/, '');
+            const episodesBlock = serverMatch[2];
+            const epRe = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+            let epMatch;
+            while ((epMatch = epRe.exec(episodesBlock)) !== null) {
+                const href = epMatch[1];
+                const name = epMatch[2].replace(/<[^>]+>/g, '').trim();
+                const fullUrl = href.startsWith('http') ? href : MOTCHILL_BASE + href;
+                episodes.push({ id: fullUrl, name: name, server: serverName });
+            }
+        }
+
+        if (episodes.length === 0) {
+            // Fallback: parse all <a href="/xem-phim/..."> links
+            const fallbackRe = /<a[^>]+href="(\/xem-phim\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+            let m;
+            while ((m = fallbackRe.exec(watchHtml)) !== null) {
+                const name = m[2].replace(/<[^>]+>/g, '').trim();
+                if (name) episodes.push({ id: MOTCHILL_BASE + m[1], name: name, server: 'Vietsub' });
+            }
+        }
+
+        console.log('[JS-MC] Episodes found: ' + episodes.length);
+        return JSON.stringify(episodes);
+    } catch (e) {
+        console.log('[JS-MC] getEpisodes error: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}
