@@ -1,1 +1,84 @@
-async function getNewSeries(t=null){const e="https://motphimchillvl.net";async function i(t){const e=await fetch(t,{headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}});if(!e.ok)throw new Error("Fetch failed "+e.status+": "+t);return e.text()}try{console.log("[KENG][1-12][Motchill] getNewSeries() html="+(t?"provided("+t.length+")":"null")),t||(t=await i(e+"/danh-sach/phim-bo"));const s=t.split('<li class="item'),l=[];for(let t=1;t<s.length&&l.length<20;t++){const i=s[t],r=i.indexOf("</li>"),n=r>=0?i.substring(0,r):i.substring(0,2e3),o=n.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/),a=n.match(/data-original="(\/storage\/[^"]+)"/),c=n.match(/class="label[^"]*"[^>]*>([^<]+)</);if(!o)continue;const h=n.match(/class="name"[\s\S]*?title="([^"]+)"/),g=h?h[1].replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/&#039;/g,"'"):"";if(!g)continue;const u=c?c[1].trim():"";if(u.toLowerCase().includes("trailer")||g.toLowerCase().includes("trailer"))continue;const m=g.match(/\b(20\d{2})\s*$/),p=m?m[1]:"",f=m?g.slice(0,-p.length).trim():g,d=u.indexOf(" + "),w=d>=0?u.slice(0,d).trim():u,b=d>=0?u.slice(d+3).trim():"";l.push({rank:0,title:f,title_original:"",poster_url:a?e+a[1]:"",url:o[1],media_type:"series",badge_text:w,badge_sub:b,year:p,rating:"",synopsis:"",age_rating:"",episode_current:w,genres:[],slug:o[2]})}if(0===l.length)throw new Error("No movies parsed from /danh-sach/phim-bo");const r=l.filter(t=>!t.poster_url);if(r.length>0){(await Promise.allSettled(r.map(t=>i(t.url)))).forEach((t,e)=>{"fulfilled"===t.status&&(r[e].poster_url=function(t){const e=t.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/);return e?e[1]:""}(t.value))})}const n=l.map(({slug:t,...e})=>e);return console.log("[KENG][1-12][Motchill] SUCCESS: "+n.length+" items, first: "+n[0].title),JSON.stringify(n)}catch(t){return console.log("[KENG][1-12][Motchill] ERROR: "+t.message),JSON.stringify({error:t.message})}}
+// Story 1-12 | Motchill | Phim Bộ Mới Cập Nhật — v2
+// Contract: getNewSeries(html?) → JSON array
+// Target: https://motphimchillvl.net/danh-sach/phim-bo
+// v2 changes: filter Trailer inline (before push), consistent with contract
+
+async function getNewSeries(html = null) {
+    const MC_BASE = 'https://motphimchillvl.net';
+    const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+    async function fetchHtml(url) {
+        const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
+        if (!res.ok) throw new Error('Fetch failed ' + res.status + ': ' + url);
+        return res.text();
+    }
+
+    function extractOgImage(html) {
+        const m = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/);
+        return m ? m[1] : '';
+    }
+
+    try {
+        console.log('[KENG][1-12][Motchill] getNewSeries() html=' + (html ? 'provided(' + html.length + ')' : 'null'));
+
+        if (!html) html = await fetchHtml(MC_BASE + '/danh-sach/phim-bo');
+
+        const liParts = html.split('<li class="item');
+        const movies = [];
+        for (let i = 1; i < liParts.length && movies.length < 20; i++) {
+            const block = liParts[i];
+            const endIdx = block.indexOf('</li>');
+            const liBody = endIdx >= 0 ? block.substring(0, endIdx) : block.substring(0, 2000);
+
+            const hrefM  = liBody.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/);
+            const imgM   = liBody.match(/data-original="(\/storage\/[^"]+)"/);
+            const labelM = liBody.match(/class="label[^"]*"[^>]*>([^<]+)</);
+            if (!hrefM) continue;
+
+            const nameTitleM = liBody.match(/class="name"[\s\S]*?title="([^"]+)"/);
+            const rawTitle = nameTitleM
+                ? nameTitleM[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'")
+                : '';
+            if (!rawTitle) continue;
+
+            const label = labelM ? labelM[1].trim() : '';
+
+            // Filter Trailer inline — before push (contract rule)
+            if (label.toLowerCase().includes('trailer') || rawTitle.toLowerCase().includes('trailer')) continue;
+
+            const yearM = rawTitle.match(/\b(20\d{2})\s*$/);
+            const year  = yearM ? yearM[1] : '';
+            const title = yearM ? rawTitle.slice(0, -year.length).trim() : rawTitle;
+
+            const plusIdx    = label.indexOf(' + ');
+            const badge_text = plusIdx >= 0 ? label.slice(0, plusIdx).trim() : label;
+            const badge_sub  = plusIdx >= 0 ? label.slice(plusIdx + 3).trim() : '';
+
+            movies.push({
+                rank: 0, title, title_original: '',
+                poster_url: imgM ? MC_BASE + imgM[1] : '',
+                url: hrefM[1], media_type: 'series', badge_text, badge_sub,
+                year, rating: '', synopsis: '', age_rating: '',
+                episode_current: badge_text, genres: [], slug: hrefM[2]
+            });
+        }
+
+        if (movies.length === 0) throw new Error('No movies parsed from /danh-sach/phim-bo');
+
+        const misses = movies.filter(m => !m.poster_url);
+        if (misses.length > 0) {
+            const results = await Promise.allSettled(misses.map(m => fetchHtml(m.url)));
+            results.forEach((r, i) => {
+                if (r.status === 'fulfilled') misses[i].poster_url = extractOgImage(r.value);
+            });
+        }
+
+        const output = movies.map(({ slug, ...rest }) => rest);
+        console.log('[KENG][1-12][Motchill] SUCCESS: ' + output.length + ' items, first: ' + output[0].title);
+        return JSON.stringify(output);
+
+    } catch (e) {
+        console.log('[KENG][1-12][Motchill] ERROR: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}

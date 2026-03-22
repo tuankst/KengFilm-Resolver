@@ -1,1 +1,74 @@
-async function getCinema(){const t="https://motphimchillvl.net";try{console.log("[KENG][cinema][Motchill] getCinema()");const e=t+"/danh-sach/phim-chieu-rap",i=await async function(t){const e=await fetch(t,{headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}});if(!e.ok)throw new Error("Fetch failed "+e.status+": "+t);return e.text()}(e);console.log("[KENG][cinema][Motchill] HTML length: "+i.length);const n=i.split('<li class="item'),s=[];for(let e=1;e<n.length&&s.length<20;e++){const i=n[e].indexOf("</li>"),l=i>=0?n[e].substring(0,i):n[e].substring(0,2e3),r=l.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/),a=l.match(/class="name"[\s\S]{0,300}?title="([^"]+)"/),o=l.match(/data-original="([^"]+)"/),c=l.match(/class="label[^"]*">([^<]+)</);if(!r)continue;const h=(a?a[1]:"").replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/&#039;/g,"'").trim();if(!h)continue;const g=c?c[1].trim():"";if(g.toLowerCase().includes("trailer")||h.toLowerCase().includes("trailer"))continue;let m=h,u="";const p=h.match(/\s+((?:19|20)\d{2})$/);p&&(u=p[1],m=h.replace(p[0],"").trim());const f=g.indexOf(" + "),d=f>=0?g.slice(0,f).trim():g,w=f>=0?g.slice(f+3).trim():"";let y=o?o[1]:"";y&&!y.startsWith("http")&&(y=t+y),s.push({rank:0,title:m,title_original:"",poster_url:y,url:r[1],media_type:"movie",badge_text:d,badge_sub:w,year:u,rating:"",synopsis:"",age_rating:"",episode_current:d,genres:[]})}if(0===s.length)throw new Error("No cinema movies found");return console.log("[KENG][cinema][Motchill] SUCCESS: "+s.length+" items, first: "+s[0].title),JSON.stringify(s)}catch(t){return console.log("[KENG][cinema][Motchill] ERROR: "+t.message),JSON.stringify({error:t.message})}}
+// Story 1-13 | Motchill | Phim Chiếu Rạp Mới
+// Target: https://motphimchillvl.net/danh-sach/phim-chieu-rap
+
+async function getCinema() {
+    const MC_BASE = 'https://motphimchillvl.net';
+    const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+    async function fetchHtml(url) {
+        const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
+        if (!res.ok) throw new Error('Fetch failed ' + res.status + ': ' + url);
+        return res.text();
+    }
+
+    try {
+        console.log('[KENG][cinema][Motchill] getCinema()');
+        const target = MC_BASE + '/danh-sach/phim-chieu-rap';
+        const html = await fetchHtml(target);
+        console.log('[KENG][cinema][Motchill] HTML length: ' + html.length);
+
+        const parts = html.split('<li class="item');
+        const movies = [];
+
+        for (let i = 1; i < parts.length && movies.length < 20; i++) {
+            const endIdx = parts[i].indexOf('</li>');
+            const block = endIdx >= 0 ? parts[i].substring(0, endIdx) : parts[i].substring(0, 2000);
+
+            const hrefM  = block.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/);
+            const nameM  = block.match(/class="name"[\s\S]{0,300}?title="([^"]+)"/);
+            const imgM   = block.match(/data-original="([^"]+)"/);
+            const labelM = block.match(/class="label[^"]*">([^<]+)</);
+
+            if (!hrefM) continue;
+
+            const rawTitle = (nameM ? nameM[1] : '')
+                .replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'").trim();
+
+            if (!rawTitle) continue;
+
+            const label = labelM ? labelM[1].trim() : '';
+            if (label.toLowerCase().includes('trailer') || rawTitle.toLowerCase().includes('trailer')) continue;
+
+            let title = rawTitle;
+            let year  = '';
+            const yearMatch = rawTitle.match(/\s+((?:19|20)\d{2})$/);
+            if (yearMatch) {
+                year = yearMatch[1];
+                title = rawTitle.replace(yearMatch[0], '').trim();
+            }
+
+            const plusIdx    = label.indexOf(' + ');
+            const badge_text = plusIdx >= 0 ? label.slice(0, plusIdx).trim() : label;
+            const badge_sub  = plusIdx >= 0 ? label.slice(plusIdx + 3).trim() : '';
+
+            let poster = imgM ? imgM[1] : '';
+            if (poster && !poster.startsWith('http')) poster = MC_BASE + poster;
+
+            movies.push({
+                rank: 0, title, title_original: '', poster_url: poster,
+                url: hrefM[1], media_type: 'movie', badge_text, badge_sub,
+                year, rating: '', synopsis: '', age_rating: '',
+                episode_current: badge_text, genres: [],
+            });
+        }
+
+        if (movies.length === 0) throw new Error('No cinema movies found');
+
+        console.log('[KENG][cinema][Motchill] SUCCESS: ' + movies.length + ' items, first: ' + movies[0].title);
+        return JSON.stringify(movies);
+
+    } catch (e) {
+        console.log('[KENG][cinema][Motchill] ERROR: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}
