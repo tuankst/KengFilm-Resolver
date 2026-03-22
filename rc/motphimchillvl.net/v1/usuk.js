@@ -1,1 +1,92 @@
-async function getNewUsUk(){const t="https://motphimchillvl.net";async function e(t){const e=await fetch(t,{headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}});if(!e.ok)throw new Error("Fetch failed "+e.status+": "+t);return e.text()}try{console.log("[KENG][1-16][Motchill] getNewUsUk()");const l=await e(t+"/quoc-gia/au-my");console.log("[KENG][1-16][Motchill] HTML length: "+l.length);const s=l.split('<li class="item'),i=[];for(let e=1;e<s.length&&i.length<20;e++){const l=s[e],r=l.indexOf("</li>"),o=r>=0?l.substring(0,r):l.substring(0,2e3),n=o.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/),a=o.match(/data-original="(\/storage\/[^"]+)"/),c=o.match(/class="label[^"]*"[^>]*>([^<]+)</);if(!n)continue;const g=o.match(/class="name"[\s\S]*?title="([^"]+)"/),h=g?g[1].replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/&#039;/g,"'"):n[1],u=h.match(/\b(20\d{2})\s*$/),m=u?u[1]:"",f=u?h.slice(0,-m.length).trim():h,p=c?c[1].trim():"",d=p.indexOf(" + "),w=d>=0?p.slice(0,d).trim():p,y=d>=0?p.slice(d+3).trim():"";let E="movie";(/tập\s*\d+/i.test(w)||/^\d+\/\d+$/.test(w)||/\d+\s*tập/i.test(w)||/full/i.test(w)&&!/full\s*hd/i.test(w))&&(E="series"),i.push({rank:0,title:f,title_original:"",poster_url:a?t+a[1]:"",url:n[1],media_type:E,badge_text:w,badge_sub:y,year:m,rating:"",synopsis:"",age_rating:"",episode_current:w,genres:[],slug:n[2]})}if(0===i.length)throw new Error("No movies parsed from /quoc-gia/au-my");const r=i.filter(t=>!t.badge_text.toLowerCase().includes("trailer"));if(0===r.length)throw new Error("All items filtered as trailers");r.forEach((t,e)=>{i[e]=t}),i.length=r.length;const o=i.filter(t=>!t.poster_url);if(o.length>0){(await Promise.allSettled(o.map(t=>e(t.url)))).forEach((t,e)=>{"fulfilled"===t.status&&(o[e].poster_url=function(t){const e=t.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/);return e?e[1]:""}(t.value))})}const n=i.map(({slug:t,...e})=>e);return console.log("[KENG][1-16][Motchill] SUCCESS: "+n.length+" items, first: "+n[0].title),JSON.stringify(n)}catch(t){return console.log("[KENG][1-16][Motchill] ERROR: "+t.message),JSON.stringify({error:t.message})}}
+// Story 1-16 | Motchill | Phim US-UK Mới
+// Target: https://motphimchillvl.net/quoc-gia/au-my
+
+async function getNewUsUk() {
+    const MC_BASE = 'https://motphimchillvl.net';
+    const MC_UA   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+    async function fetchHtml(url) {
+        const res = await fetch(url, { headers: { 'User-Agent': MC_UA } });
+        if (!res.ok) throw new Error('Fetch failed ' + res.status + ': ' + url);
+        return res.text();
+    }
+
+    function extractOgImage(html) {
+        const m = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/);
+        return m ? m[1] : '';
+    }
+
+    try {
+        console.log('[KENG][1-16][Motchill] getNewUsUk()');
+
+        const html = await fetchHtml(MC_BASE + '/quoc-gia/au-my');
+        console.log('[KENG][1-16][Motchill] HTML length: ' + html.length);
+
+        const liParts = html.split('<li class="item');
+        const movies = [];
+        for (let i = 1; i < liParts.length && movies.length < 20; i++) {
+            const block = liParts[i];
+            const endIdx = block.indexOf('</li>');
+            const liBody = endIdx >= 0 ? block.substring(0, endIdx) : block.substring(0, 2000);
+
+            const hrefM  = liBody.match(/href="(https?:\/\/[^"]+\/phim\/([^"/?]+))"/);
+            const imgM   = liBody.match(/data-original="(\/storage\/[^"]+)"/);
+            const labelM = liBody.match(/class="label[^"]*"[^>]*>([^<]+)</);
+            if (!hrefM) continue;
+
+            const nameTitleM = liBody.match(/class="name"[\s\S]*?title="([^"]+)"/);
+            const rawTitle = nameTitleM
+                ? nameTitleM[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#039;/g, "'")
+                : hrefM[1];
+
+            const yearM = rawTitle.match(/\b(20\d{2})\s*$/);
+            const year  = yearM ? yearM[1] : '';
+            const title = yearM ? rawTitle.slice(0, -year.length).trim() : rawTitle;
+
+            const label      = labelM ? labelM[1].trim() : '';
+            const plusIdx    = label.indexOf(' + ');
+            const badge_text = plusIdx >= 0 ? label.slice(0, plusIdx).trim() : label;
+            const badge_sub  = plusIdx >= 0 ? label.slice(plusIdx + 3).trim() : '';
+
+            // Detect media_type: US-UK có cả movie lẫn series
+            // "Tập X", "X/Y", "Full" (không phải "Full HD") → series; còn lại → movie
+            let media_type = 'movie';
+            if (/tập\s*\d+/i.test(badge_text) || /^\d+\/\d+$/.test(badge_text) || /\d+\s*tập/i.test(badge_text)) {
+                media_type = 'series';
+            } else if (/full/i.test(badge_text) && !/full\s*hd/i.test(badge_text)) {
+                media_type = 'series';
+            }
+
+            movies.push({
+                rank: 0, title, title_original: '',
+                poster_url: imgM ? MC_BASE + imgM[1] : '',
+                url: hrefM[1], media_type, badge_text, badge_sub,
+                year, rating: '', synopsis: '', age_rating: '',
+                episode_current: badge_text, genres: [], slug: hrefM[2]
+            });
+        }
+
+        if (movies.length === 0) throw new Error('No movies parsed from /quoc-gia/au-my');
+
+        const filtered = movies.filter(m => !m.badge_text.toLowerCase().includes('trailer'));
+        if (filtered.length === 0) throw new Error('All items filtered as trailers');
+        filtered.forEach((m, i) => { movies[i] = m; });
+        movies.length = filtered.length;
+
+        const misses = movies.filter(m => !m.poster_url);
+        if (misses.length > 0) {
+            const results = await Promise.allSettled(misses.map(m => fetchHtml(m.url)));
+            results.forEach((r, i) => {
+                if (r.status === 'fulfilled') misses[i].poster_url = extractOgImage(r.value);
+            });
+        }
+
+        const output = movies.map(({ slug, ...rest }) => rest);
+        console.log('[KENG][1-16][Motchill] SUCCESS: ' + output.length + ' items, first: ' + output[0].title);
+        return JSON.stringify(output);
+
+    } catch (e) {
+        console.log('[KENG][1-16][Motchill] ERROR: ' + e.message);
+        return JSON.stringify({ error: e.message });
+    }
+}
